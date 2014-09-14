@@ -16,7 +16,7 @@
 #
 # This is your Tracer Key. Make sure this is unique for each bash file you run.
 # Additional keys can be generated from our portal: www.internetweathermap.com
-KEY="dev_rackspace"
+KEY="replace_with_your_personal_key"
 #
 # This is the 5-minute load average threshold
 # If this system is running above this load average, IWM run will be skipped
