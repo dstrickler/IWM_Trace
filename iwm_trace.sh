@@ -221,17 +221,19 @@ do
     (( $(bc <<< "${loadavg} >= ${HIGHLOAD}") == 1 )) && \
     error "5-minute load average ${loadavg} is TOO HIGH" 1
 
-    # TODO: Figure out why this was put in here. Can it be removed?
-    timestamp="$(get_unixtime)"
-    while [[ -f ${OUTDIR}/${timestamp}.${KEY} ]]; do
-       timestamp="$(get_unixtime)"
+    # We always need a unique timestamp for a unique filename.
+    # If the filename exists, loop and get another filename.
+    # This is very importaint code as the bash code runs fast.
+    utstamp="$(get_unixtime)"
+    while [[ -f ${OUTDIR}/${utstamp}.${KEY} ]]; do
+       utstamp="$(get_unixtime)"
     done
 
     TRACEIP=$(echo ${ip} | sed -e 's/\/$//')
     timestamp_now=$(get_timestamp_now)
     if (( ${CRON} == 0 )); then
         echo -n "${timestamp_now} :: ${loadavg} :: Tracing via CLI ${TRACEIP}: "
-        ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${timestamp}.${KEY} 2>${IWMTMPDIR}/${timestamp}.errors.log
+        ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${timestamp}.errors.log
         RETVAL=$?
         check_exitcode "Tracing ${TRACEIP}"
 
@@ -246,7 +248,7 @@ do
        timestamp="$(date +%s)"
        echo "${timestamp_now} :: ${loadavg} :: Tracing via cron to ${TRACEIP}"
        # echo "${TRACEROUTE_PATH} ${TRACE} ${TRACEIP}"
-       ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${timestamp}.${KEY} 2>${IWMTMPDIR}/${timestamp}.errors.log &
+       ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log &
     fi
 
     # Keep the lockfile timestamp fresh
@@ -260,7 +262,8 @@ stoptwo=$(get_unixtime)
 # Take a sample of load average after all the traces are done and upload it below.
 # Don't take a sample each time we do a trace as this will just beat on the API
 # and not get us any reasonable data.
-echo ${loadavg} > ${OUTDIR}/load_average_${timestamp}.${KEY}
+# Since this file is only written once, its filename should be unique.
+echo ${loadavg} > ${OUTDIR}/load_average_${utstamp}.${KEY}
 
 # Take each output file and upload it via the API.
 for file in ${OUTDIR}/*
