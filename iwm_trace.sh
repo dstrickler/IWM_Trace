@@ -21,12 +21,14 @@ HIGHLOAD="5"
 #
 # Report runtime of script into syslog when run from cron, 1=yes
 REPORT="1"
+#
+# TODO: Add a verbose logging switch and a log() function.
 
 
 ################################
 # DO NOT EDIT BEYOND THIS LINE #
 ################################
-VERSION="4.0.022"
+VERSION="4.0.023"
 IWMHOST="api.internetweathermap.com"
 IWMDIR="iwm"
 IWMPROTO="http"
@@ -182,15 +184,13 @@ if [[ -e ${LOCKFILE} ]]; then
 fi
 
 
-# TODO: Trap for an O/S to get a better understanding of the environment.
-# We might trap for an O/S at a later date.
-# OS=$(uname -s 2>/dev/null)
-# echo "${OS}"
-
-
 # Lock the bash script by creating the lock file.
 start=$(get_unixtime)
 echo "${start}" > ${LOCKFILE}
+
+# Trap for an O/S to get a better understanding of the environment.
+# Would be better if it was a Linux flavor.
+uname_string=$(uname -a 2>/dev/null)
 
 
 # Find out if we are being run from the CLI or CRON.
@@ -245,18 +245,14 @@ do
 
         CURLURL="${IWMPROTO}://${IWMHOST}/api/put_traces"
         echo -n "${timestamp_now} :: ${loadavg} :: Uploading via CLI to ${CURLURL} "
-        OUTPUTTEXT=`cat ${OUTDIR}/${timestamp}.${KEY}`
-        curl -s --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}"
+        OUTPUTTEXT=`cat ${OUTDIR}/${utstamp}.${KEY}`
+        curl -s --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}" -d uname_string="${uname_string}"
         echo "OK"
     else
        # This is what is executed when run from crontab.
        # TODO: Make this a bash file itself that spans and uploads all by itself so the uplaods don't happen all at once.
        echo "${timestamp_now} :: ${loadavg} :: Tracing via cron to ${TRACEIP}"
        ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log &
-
-       # output_filename=${OUTDIR}/${utstamp}.${KEY}
-       # ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log && payload=`cat ${output_filename}` && curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${payload}" &
-
 
     fi
 
@@ -273,7 +269,9 @@ stoptwo=$(get_unixtime)
 # Since this file is only written once, its filename should be unique.
 echo ${loadavg} > ${OUTDIR}/load_average_${utstamp}.${KEY}
 
-# Take each output file and upload it via the API.
+
+# Take all the payload files and put them into a single var called single_payload.
+single_payload=""
 for file in ${OUTDIR}/*
 do
     timestamp_now=$(get_timestamp_now)
@@ -289,11 +287,22 @@ do
         # Upload each file via the API
         CURLURL="${IWMPROTO}://${IWMHOST}/api/put_traces"
         OUTPUTTEXT=`cat ${file}`
-        echo "${timestamp_now} :: ${loadavg} :: Uploading via cron to ${CURLURL}"
-        curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}"
+
+        # No longer used, but kept in commends in case we need them.
+        # echo "${timestamp_now} :: ${loadavg} :: Uploading via cron to ${CURLURL}"
+        # curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}"
+
+        single_payload=$(printf "${single_payload} ${OUTPUTTEXT}\n--[LINEBREAK]--\n")
+
     fi
 done
 wait
+
+# Now, in one clean API call, upload the single_payload variable.
+CURLURL="${IWMPROTO}://${IWMHOST}/api/put_single_payload_traces"
+echo "${timestamp_now} :: ${loadavg} :: Uploading tracer payloads..."
+curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${single_payload}" -d uname_string="${uname_string}"
+
 
 # Show stats on how long everything took to acomplish.
 end=$(get_unixtime)
@@ -306,4 +315,4 @@ fi
 
 
 cleanup
-echo "${timestamp_now} :: ${loadavg} :: -----[ Bash script completed OK ]-----"
+echo "${timestamp_now} :: ${loadavg} :: -----[ IWM bash script completed OK ]-----"
