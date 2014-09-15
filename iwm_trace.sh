@@ -98,7 +98,7 @@ fi
 
 # If we don't have one of these programs, halt, and let the user know.
 # The traceroute command can't be found on OSX, so I removed it from the test.
-for cmd in awk bc date curl logger mkdir sed tty uptime
+for cmd in awk bc date curl logger mkdir sed tty uptime wc
 do
  type -p ${cmd} > /dev/null 2>&1
  if (( ${?} == 1 )); then
@@ -202,7 +202,8 @@ RETVAL=$?
 stopone=$(get_unixtime)
 check_exitcode "Fetching new worklist"
 [[ -s ${WORKLIST} ]] || error "Worklist file is empty" 1
-
+NUMOFLINES=$(wc -l < ${WORKLIST})
+echo "${timestamp_now} :: ${loadavg} :: Worklist contains ${NUMOFLINES} traces to perform."
 
 for ip in $(cat ${WORKLIST})
 do
