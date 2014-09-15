@@ -26,7 +26,7 @@ REPORT="1"
 ################################
 # DO NOT EDIT BEYOND THIS LINE #
 ################################
-VERSION="4.0.021"
+VERSION="4.0.022"
 IWMHOST="api.internetweathermap.com"
 IWMDIR="iwm"
 IWMPROTO="http"
@@ -233,7 +233,7 @@ do
     timestamp_now=$(get_timestamp_now)
     if (( ${CRON} == 0 )); then
         echo -n "${timestamp_now} :: ${loadavg} :: Tracing via CLI ${TRACEIP}: "
-        ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${timestamp}.errors.log
+        ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log
         RETVAL=$?
         check_exitcode "Tracing ${TRACEIP}"
 
@@ -245,15 +245,12 @@ do
     else
        # This is what is executed when run from crontab.
        # TODO: Make this a bash file itself that spans and uploads all by itself so the uplaods don't happen all at once.
-       timestamp="$(date +%s)"
        echo "${timestamp_now} :: ${loadavg} :: Tracing via cron to ${TRACEIP}"
-       # echo "${TRACEROUTE_PATH} ${TRACE} ${TRACEIP}"
        ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log &
     fi
 
     # Keep the lockfile timestamp fresh
-    start=$(get_unixtime)
-    echo "${start}" > ${LOCKFILE}
+    echo "${utstamp}" > ${LOCKFILE}
 
 done
 wait
@@ -269,6 +266,7 @@ echo ${loadavg} > ${OUTDIR}/load_average_${utstamp}.${KEY}
 for file in ${OUTDIR}/*
 do
     timestamp_now=$(get_timestamp_now)
+
     if (( ${CRON} == 0 )); then
         # TODO: Find out what this if/then is for
         if [[ -z ${UPLOADLIST} ]]; then
