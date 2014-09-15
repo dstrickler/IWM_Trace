@@ -14,7 +14,7 @@
 # Additional keys can be generated from our portal: www.internetweathermap.com
 KEY="replace_with_your_personal_key"
 #
-# This is the 5-minute load average threshold
+# 5-minute "not to exceed" load average threshold.
 # If this system is running above this load average, IWM run will be skipped
 HIGHLOAD="5"
 #
@@ -30,9 +30,7 @@ IWMHOST="api.internetweathermap.com"
 IWMDIR="iwm"
 IWMPROTO="http"
 LOGGER="-i -p INFO -t iwm"
-# (original) CURL="--retry 5 --retry-delay 1 -s -B -u ${USER}:${PASS}"
-# -s = Silent mode,
-CURL="--retry 5 --retry-delay 1 -s"
+# CURL_OPTIONS="--retry 5 --retry-delay 1 -s"
 HOPS="15"
 TRACE="-n -m ${HOPS}"
 
@@ -80,7 +78,7 @@ get_loadavg() {
  fi
 }
 
-# These are defined over again inside of any loop
+# These are defined over again inside of any loop to keep current
 loadavg=$(get_loadavg)
 timestamp_now=$(get_timestamp_now)
 
@@ -112,7 +110,19 @@ IWMTMPDIR=$(mktemp -d /tmp/tmp.XXXXXXXXXX)
  error "Could not create temp directory ${IWMTMPDIR}." 1 && \
  trap "rm -rf ${IWMTMPDIR} ${LOCKFILE}" EXIT
 
+# Make the sub-dir "output" under the the temp directory
 mkdir ${IWMTMPDIR}/output
+
+# Find out a existing directory that's writable for the lock file.
+# If all else fails, use your home directory.
+# TODO: On servers like Webfaction, this lock will FAIL (may be fixed)
+LOCKFILE="~/iwm.lock"
+if [[ -d '/var/lock'  &&  -w '/var/lock' ]]; then
+    LOCKFILE="/var/lock/iwm.lock"
+fi
+if [[ -d '/tmp'  &&  -w '/tmp' ]]; then
+    LOCKFILE="/tmp/iwm.lock"
+fi
 
 
 # Run a check to see if there is a new version of the code.
@@ -121,7 +131,6 @@ VERSION_FILE="${IWMTMPDIR}/iwm_trace_bash_version.txt"
 CURLURL="${IWMPROTO}://${IWMHOST}/api/get_iwm_trace_bash_version"
 curl -o ${VERSION_FILE} -s --url "${CURLURL}"
 current_version=`cat ${VERSION_FILE}`
-# echo "${timestamp_now} :: ${loadavg} :: Latest version of this bash code is: ${current_version}"
 if [[ "${current_version}" == "${VERSION}" ]] ; then
     echo "${timestamp_now} :: ${loadavg} :: This is the most current version of this software: ${VERSION}"
 else
@@ -132,26 +141,12 @@ else
     curl -o "${path_to_bash}"  -s --url "${CURLURL}"
     chmod +x ${path_to_bash}
     echo "${timestamp_now} :: ${loadavg} :: Halting current code so it runs the new version when run again."
-    if [[ -e "/var/lock/iwm.loc" ]]; then
-        rm /var/lock/iwm.loc
-    fi
-    if [[ -e "/tmp/iwm.lock" ]]; then
-        rm /tmp/iwm.lock
+    if [[ -e "${LOCKFILE}" ]]; then
+        rm ${LOCKFILE}
     fi
     exit
 fi
 
-# Find out a existing directory that's writable.
-# If all else fails, use your home directory.
-# TODO: On servers like Webfaction, this lock will FAIL
-LOCKFILE="~/iwm.lock"
-if [[ -d '/var/lock'  &&  -w '/var/lock' ]]; then
-    LOCKFILE="/var/lock/iwm.lock"
-fi
-if [[ -d '/tmp'  &&  -w '/tmp' ]]; then
-    LOCKFILE="/tmp/iwm.lock"
-fi
-# echo "Using lock file: ${LOCKFILE}"
 
 # If the lock file is too old, delete it.
 if [[ -e ${LOCKFILE} ]]; then
