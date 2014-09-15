@@ -59,6 +59,7 @@ error() {
  loadavg=$(get_loadavg)
  timestamp_now=$(get_timestamp_now)
  info "${timestamp_now} :: ${loadavg} :: [!] Test cancelled: ${1}"
+ cleanup
  (( ${2} == 1 )) && exit 1
 }
 
@@ -80,6 +81,15 @@ get_loadavg() {
  fi
 }
 
+cleanup() {
+    # Cleanup our temp directory and lockfile
+    if [ -e "${IWMTMPDIR}" ]; then
+        rm -rf ${IWMTMPDIR}
+    fi
+    if [ -e "${LOCKFILE}" ]; then
+        rm -rf ${LOCKFILE}
+    fi
+}
 # These are defined over again inside of any loop to keep current
 loadavg=$(get_loadavg)
 timestamp_now=$(get_timestamp_now)
@@ -97,7 +107,8 @@ if [ -e "/bin/traceroute" ]; then
 fi
 
 # If we don't have one of these programs, halt, and let the user know.
-# The traceroute command can't be found on OSX, so I removed it from the test.
+# The traceroute command can't be found on OSX, so I removed it from the test
+# and now it has it's own variable set to its path.
 for cmd in awk bc date curl logger mkdir sed tty uptime wc
 do
  type -p ${cmd} > /dev/null 2>&1
@@ -142,10 +153,7 @@ else
     CURLURL="${IWMPROTO}://${IWMHOST}/api/get_iwm_trace_bash_code/${KEY}"
     curl -o "${path_to_bash}"  -s --url "${CURLURL}"
     chmod +x ${path_to_bash}
-    echo "${timestamp_now} :: ${loadavg} :: Halting current code so it runs the new version when run again."
-    if [[ -e "${LOCKFILE}" ]]; then
-        rm ${LOCKFILE}
-    fi
+    error "${timestamp_now} :: ${loadavg} :: Halting current code so it runs the new version when run again." 1
     exit
 fi
  
@@ -156,7 +164,9 @@ if [[ -e ${LOCKFILE} ]]; then
         echo "${timestamp_now} :: ${loadavg} :: Lockfile ${LOCKFILE} is too old - delete it."
         rm ${LOCKFILE}
     else
-        error "${timestamp_now} :: ${loadavg} :: Lockfile (${LOCKFILE}) is too fresh to run." 1
+        # Don't clean out the lockfile by calling error(). We need the lockfile to stay in place.
+        echo "${timestamp_now} :: ${loadavg} :: Lockfile (${LOCKFILE}) is too fresh to run."
+        exit
     fi
 fi
 
@@ -207,9 +217,9 @@ echo "${timestamp_now} :: ${loadavg} :: Worklist contains ${NUMOFLINES} traces t
 
 for ip in $(cat ${WORKLIST})
 do
- loadavg=$(get_loadavg)
- (( $(bc <<< "${loadavg} >= ${HIGHLOAD}") == 1 )) && \
-   error "5-minute load average ${loadavg} is TOO HIGH" 1
+    loadavg=$(get_loadavg)
+    (( $(bc <<< "${loadavg} >= ${HIGHLOAD}") == 1 )) && \
+    error "5-minute load average ${loadavg} is TOO HIGH" 1
 
     # TODO: Figure out why this was put in here. Can it be removed?
     timestamp="$(get_unixtime)"
@@ -217,27 +227,31 @@ do
        timestamp="$(get_unixtime)"
     done
 
- TRACEIP=$(echo ${ip} | sed -e 's/\/$//')
- timestamp_now=$(get_timestamp_now)
- if (( ${CRON} == 0 )); then
-    echo -n "${timestamp_now} :: ${loadavg} :: Tracing via CLI ${TRACEIP}: "
-    ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${timestamp}.${KEY} 2>${IWMTMPDIR}/${timestamp}.errors.log
-    RETVAL=$?
-    check_exitcode "Tracing ${TRACEIP}"
+    TRACEIP=$(echo ${ip} | sed -e 's/\/$//')
+    timestamp_now=$(get_timestamp_now)
+    if (( ${CRON} == 0 )); then
+        echo -n "${timestamp_now} :: ${loadavg} :: Tracing via CLI ${TRACEIP}: "
+        ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${timestamp}.${KEY} 2>${IWMTMPDIR}/${timestamp}.errors.log
+        RETVAL=$?
+        check_exitcode "Tracing ${TRACEIP}"
 
-	CURLURL="${IWMPROTO}://${IWMHOST}/api/put_traces"
-	echo -n "${timestamp_now} :: ${loadavg} :: Uploading via CLI to ${CURLURL} "
-	OUTPUTTEXT=`cat ${OUTDIR}/${timestamp}.${KEY}`
-	curl -s --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}"
-    echo "OK"
- else
-   # This is what is executed when run from crontab.
-   # TODO: Make this a bash file itself that spans and uploads all by itself so the uplaods don't happen all at once.
-   timestamp="$(date +%s)"
-   echo "${timestamp_now} :: ${loadavg} :: Tracing via cron to ${TRACEIP}"
-   # echo "${TRACEROUTE_PATH} ${TRACE} ${TRACEIP}"
-   ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${timestamp}.${KEY} 2>${IWMTMPDIR}/${timestamp}.errors.log &
- fi
+        CURLURL="${IWMPROTO}://${IWMHOST}/api/put_traces"
+        echo -n "${timestamp_now} :: ${loadavg} :: Uploading via CLI to ${CURLURL} "
+        OUTPUTTEXT=`cat ${OUTDIR}/${timestamp}.${KEY}`
+        curl -s --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}"
+        echo "OK"
+    else
+       # This is what is executed when run from crontab.
+       # TODO: Make this a bash file itself that spans and uploads all by itself so the uplaods don't happen all at once.
+       timestamp="$(date +%s)"
+       echo "${timestamp_now} :: ${loadavg} :: Tracing via cron to ${TRACEIP}"
+       # echo "${TRACEROUTE_PATH} ${TRACE} ${TRACEIP}"
+       ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${timestamp}.${KEY} 2>${IWMTMPDIR}/${timestamp}.errors.log &
+    fi
+
+    # Keep the lockfile timestamp fresh
+    start=$(get_unixtime)
+    echo "${start}" > ${LOCKFILE}
 
 done
 wait
@@ -248,7 +262,7 @@ stoptwo=$(get_unixtime)
 # and not get us any reasonable data.
 echo ${loadavg} > ${OUTDIR}/load_average_${timestamp}.${KEY}
 
-# Take each output file and upload it via the API
+# Take each output file and upload it via the API.
 for file in ${OUTDIR}/*
 do
     timestamp_now=$(get_timestamp_now)
