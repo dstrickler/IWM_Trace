@@ -5,7 +5,7 @@
 # Code has been altered to use curl to get/put data via a web-based API
 # instead of by FTP, as the FTP servers prooved too hard to load balance
 # as IWM grew in size.
-# This code is based on work I didn't original write.
+# This code is based on work I didn't originaly write.
 #
 # DStrickler Sep 14, 2014
 # Thanks to MBrandon for beta testing and pushing me to get on GitHub.
