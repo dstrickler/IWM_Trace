@@ -26,7 +26,7 @@ REPORT="1"
 ################################
 # DO NOT EDIT BEYOND THIS LINE #
 ################################
-VERSION="4.0.018"
+VERSION="4.0.020"
 IWMHOST="api.internetweathermap.com"
 IWMDIR="iwm"
 IWMPROTO="http"
@@ -152,18 +152,18 @@ fi
 # If the lock file is too old, delete it.
 if [[ -e ${LOCKFILE} ]]; then
     if [ "$(find ${LOCKFILE} -mmin +1)" != "" ]; then
-        echo "${timestamp_now} :: ${loadavg} :: Lockfile ${LOCKFILE} is more than a minute old - stale - delete it."
+        echo "${timestamp_now} :: ${loadavg} :: Lockfile ${LOCKFILE} is too old - delete it."
         rm ${LOCKFILE}
     else
-        echo "${timestamp_now} :: ${loadavg} :: Lockfile (${LOCKFILE}) is too fresh to run."
+        error "${timestamp_now} :: ${loadavg} :: Lockfile (${LOCKFILE}) is too fresh to run." 1
     fi
 fi
 
 # If the lock file exists, we are probobly still running - exit out.
 if [[ -e ${LOCKFILE} ]]; then
-    error "Previous test still on-going due to recent lock file found at ${LOCKFILE}" 1
+    error "Previous test still on-going. Recent lock file found at ${LOCKFILE}" 1
 fi
-
+ 
 
 # TODO: Trap for an O/S to get a better understanding of the environment.
 # We might trap for an O/S at a later date.
@@ -171,7 +171,7 @@ fi
 # echo "${OS}"
 
 
-# Put the datestamp into the lock file so we know when it was locked.
+# Lock the bash script by creating the lock file.
 start=$(get_unixtime)
 echo "${start}" > ${LOCKFILE}
 
