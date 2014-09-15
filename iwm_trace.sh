@@ -31,9 +31,10 @@ IWMHOST="api.internetweathermap.com"
 IWMDIR="iwm"
 IWMPROTO="http"
 LOGGER="-i -p INFO -t iwm"
-# CURL_OPTIONS="--retry 5 --retry-delay 1 -s"
 HOPS="15"
 TRACE="-n -m ${HOPS}"
+CRON=0
+
 
 get_unixtime() {
     echo $(date +%s.%3N)
@@ -147,7 +148,7 @@ else
     fi
     exit
 fi
-
+ 
 
 # If the lock file is too old, delete it.
 if [[ -e ${LOCKFILE} ]]; then
@@ -163,7 +164,7 @@ fi
 if [[ -e ${LOCKFILE} ]]; then
     error "Previous test still on-going. Recent lock file found at ${LOCKFILE}" 1
 fi
- 
+
 
 # TODO: Trap for an O/S to get a better understanding of the environment.
 # We might trap for an O/S at a later date.
@@ -177,7 +178,6 @@ echo "${start}" > ${LOCKFILE}
 
 
 # Find out if we are being run from the CLI or CRON.
-CRON=0
 tty -s
 (( ${?} == 1 )) && CRON="1"
 
@@ -188,6 +188,12 @@ WORKLIST=${IWMTMPDIR}/worklist.${KEY}
 OUTDIR=${IWMTMPDIR}/output
 
 (( ${CRON} == 0 )) && echo -n "${timestamp_now} :: ${loadavg} :: Fetching new worklist: "
+
+# If we have an old worklist, clear it out
+if [ -e "${WORKLIST}" ]; then
+    echo "Removing old worklist..."
+    rm ${WORKLIST}
+fi
 
 # Get a worklist from the API. Easy, quick and reliable.
 CURLURL="${IWMPROTO}://${IWMHOST}/api/get_worklist/${KEY}"
