@@ -26,7 +26,7 @@ REPORT="1"
 ################################
 # DO NOT EDIT BEYOND THIS LINE #
 ################################
-VERSION="4.0.020"
+VERSION="4.0.021"
 IWMHOST="api.internetweathermap.com"
 IWMDIR="iwm"
 IWMPROTO="http"
@@ -153,7 +153,7 @@ else
     CURLURL="${IWMPROTO}://${IWMHOST}/api/get_iwm_trace_bash_code/${KEY}"
     curl -o "${path_to_bash}"  -s --url "${CURLURL}"
     chmod +x ${path_to_bash}
-    error "${timestamp_now} :: ${loadavg} :: Halting current code so it runs the new version when run again." 1
+    echo "${timestamp_now} :: ${loadavg} :: Halting current code so it runs the new version when run again."
     exit
 fi
  
