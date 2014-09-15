@@ -2,9 +2,6 @@
 #
 # ---------------------------------------------------------------------------
 # DStrickler Sep 12, 2014
-# Many thanks to XYZ, who took this code and whipped it into shape,
-# adding the ability to multi-task when run from cron - brilliant!
-#
 # Code has been altered to use curl to get/put data via a web-based API
 # instead of by FTP, as the FTP servers prooved too hard to load balance
 # as IWM grew in size.
@@ -12,7 +9,6 @@
 # DStrickler Sep 14, 2014
 # Thanks to MBrandon for beta testing and pushing me to get on GitHub.
 # ---------------------------------------------------------------------------
-# TODO: Get the code to auto-update by pulling fresh code via the API, and overwriting it's existing file.
 #
 # This is your Tracer Key. Make sure this is unique for each bash file you run.
 # Additional keys can be generated from our portal: www.internetweathermap.com
