@@ -226,7 +226,7 @@ do
 	CURLURL="${IWMPROTO}://${IWMHOST}/api/put_traces"
 	echo -n "${timestamp_now} :: ${loadavg} :: Uploading via CLI to ${CURLURL} "
 	OUTPUTTEXT=`cat ${OUTDIR}/${timestamp}.${KEY}`
-	curl --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}"
+	curl -s --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}"
     echo "OK"
  else
    # DStrickler Jan 7, 2013: Added full path for Traceroute.
@@ -264,7 +264,7 @@ do
         CURLURL="${IWMPROTO}://${IWMHOST}/api/put_traces"
         OUTPUTTEXT=`cat ${file}`
         echo "${timestamp_now} :: ${loadavg} :: Uploading via cron to ${CURLURL}"
-        curl --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}"
+        curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}"
     fi
 done
 wait
