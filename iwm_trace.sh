@@ -95,15 +95,21 @@ loadavg=$(get_loadavg)
 timestamp_now=$(get_timestamp_now)
 
 # Figure out where traceroute lives, and set it as a var for use later.
-if [ -e "/usr/bin/traceroute" ]; then
+# While the "type" command should fine it, we search for it in some
+# obvious places just in case.
+TRACEROUTE_PATH=$(type -p  traceroute)
+if [ -f "/usr/bin/traceroute" ]; then
     TRACEROUTE_PATH="/usr/bin/traceroute"
 fi
-if [ -e "/usr/sbin/traceroute" ]; then
+if [ -f "/usr/sbin/traceroute" ]; then
     # Configuration for OSX
     TRACEROUTE_PATH="/usr/sbin/traceroute"
 fi
-if [ -e "/bin/traceroute" ]; then
+if [ -f "/bin/traceroute" ]; then
     TRACEROUTE_PATH="/bin/traceroute"
+fi
+if [ ! -f "${TRACEROUTE_PATH}" ]; then
+    error "Traceroute not found on your system as '${TRACEROUTE_PATH}' - halting" 1
 fi
 
 # If we don't have one of these programs, halt, and let the user know.
@@ -210,7 +216,7 @@ CURLURL="${IWMPROTO}://${IWMHOST}/api/get_worklist/${KEY}"
 curl -o ${WORKLIST} -s --url "${CURLURL}"
 RETVAL=$?
 stopone=$(get_unixtime)
-check_exitcode "Fetching new worklist"
+check_exitcode "Fetching new worklist for key '${KEY}'"
 [[ -s ${WORKLIST} ]] || error "Worklist file is empty" 1
 NUMOFLINES=$(wc -l < ${WORKLIST})
 echo "${timestamp_now} :: ${loadavg} :: Worklist contains ${NUMOFLINES} traces to perform."
@@ -247,6 +253,11 @@ do
        # TODO: Make this a bash file itself that spans and uploads all by itself so the uplaods don't happen all at once.
        echo "${timestamp_now} :: ${loadavg} :: Tracing via cron to ${TRACEIP}"
        ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log &
+
+       # output_filename=${OUTDIR}/${utstamp}.${KEY}
+       # ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log && payload=`cat ${output_filename}` && curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${payload}" &
+
+
     fi
 
     # Keep the lockfile timestamp fresh
@@ -293,7 +304,6 @@ else
  (( ${REPORT} == 1 )) && logger ${LOGGER} "${message}"
 fi
 
-# If the lock file exits, unlock the lock file by removing it.
-if [ -e "${LOCKFILE}" ]; then
-    rm ${LOCKFILE}
-fi
+
+cleanup
+echo "${timestamp_now} :: ${loadavg} :: -----[ Bash script completed OK ]-----"
