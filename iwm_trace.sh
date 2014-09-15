@@ -5,6 +5,7 @@
 # Code has been altered to use curl to get/put data via a web-based API
 # instead of by FTP, as the FTP servers prooved too hard to load balance
 # as IWM grew in size.
+# This code is based on work I didn't original write.
 #
 # DStrickler Sep 14, 2014
 # Thanks to MBrandon for beta testing and pushing me to get on GitHub.
@@ -18,7 +19,7 @@ KEY="replace_with_your_personal_key"
 # If this system is running above this load average, IWM run will be skipped
 HIGHLOAD="5"
 #
-# Report runtime into syslog when run from cron, 1=yes
+# Report runtime of script into syslog when run from cron, 1=yes
 REPORT="1"
 
 
@@ -158,29 +159,32 @@ if [[ -e ${LOCKFILE} ]]; then
     fi
 fi
 
+# If the lock file exists, we are probobly still running - exit out.
+if [[ -e ${LOCKFILE} ]]; then
+    error "Previous test still on-going due to recent lock file found at ${LOCKFILE}" 1
+fi
+
+
 # TODO: Trap for an O/S to get a better understanding of the environment.
 # We might trap for an O/S at a later date.
 # OS=$(uname -s 2>/dev/null)
 # echo "${OS}"
 
 
-CRON=0
-if [[ -e ${LOCKFILE} ]]; then
-    error "Previous test still on-going due to recent lock file found at ${LOCKFILE}" 1
-fi
-
-
 # Put the datestamp into the lock file so we know when it was locked.
-# echo "Creating the lock file: ${LOCKFILE}"
 start=$(get_unixtime)
 echo "${start}" > ${LOCKFILE}
 
 
 # Find out if we are being run from the CLI or CRON.
+CRON=0
 tty -s
 (( ${?} == 1 )) && CRON="1"
 
+# WORKLIST is the file we are about to download
 WORKLIST=${IWMTMPDIR}/worklist.${KEY}
+
+# OUTDIR is where we will place the output of traceroutes, etc.
 OUTDIR=${IWMTMPDIR}/output
 
 (( ${CRON} == 0 )) && echo -n "${timestamp_now} :: ${loadavg} :: Fetching new worklist: "
@@ -200,7 +204,6 @@ do
  (( $(bc <<< "${loadavg} >= ${HIGHLOAD}") == 1 )) && \
    error "5-minute load average ${loadavg} is TOO HIGH" 1
 
-    # Unclear what this does.
     # TODO: Figure out why this was put in here. Can it be removed?
     timestamp="$(get_unixtime)"
     while [[ -f ${OUTDIR}/${timestamp}.${KEY} ]]; do
@@ -211,9 +214,6 @@ do
  timestamp_now=$(get_timestamp_now)
  if (( ${CRON} == 0 )); then
     echo -n "${timestamp_now} :: ${loadavg} :: Tracing via CLI ${TRACEIP}: "
-	# DStrickler Jan 7, 2013: Added full path for Traceroute
-	# TODO: Sniff the path there and use it instead of hardcoding it.
-	# echo "${TRACEROUTE_PATH} ${TRACE} ${TRACEIP}"
     ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${timestamp}.${KEY} 2>${IWMTMPDIR}/${timestamp}.errors.log
     RETVAL=$?
     check_exitcode "Tracing ${TRACEIP}"
@@ -224,9 +224,7 @@ do
 	curl -s --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}"
     echo "OK"
  else
-   # DStrickler Jan 7, 2013: Added full path for Traceroute.
    # This is what is executed when run from crontab.
-   # TODO: Sniff the path there and use it instead of hardcoding it.
    # TODO: Make this a bash file itself that spans and uploads all by itself so the uplaods don't happen all at once.
    timestamp="$(date +%s)"
    echo "${timestamp_now} :: ${loadavg} :: Tracing via cron to ${TRACEIP}"
@@ -264,6 +262,7 @@ do
 done
 wait
 
+# Show stats on how long everything took to acomplish.
 end=$(get_unixtime)
 message="${timestamp_now} :: ${loadavg} :: Test took $(bc <<< ${end}-${start}) seconds (download: $(bc <<< ${stopone}-${start}), trace: $(bc <<< ${stoptwo}-${stopone}), upload: $(bc <<< ${end}-${stoptwo}))"
 if (( ${CRON} == 0 )); then
@@ -272,7 +271,7 @@ else
  (( ${REPORT} == 1 )) && logger ${LOGGER} "${message}"
 fi
 
-# Unlock the lock file by removing it (if it exists).
+# If the lock file exits, unlock the lock file by removing it.
 if [ -e "${LOCKFILE}" ]; then
     rm ${LOCKFILE}
 fi
