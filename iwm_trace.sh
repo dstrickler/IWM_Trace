@@ -4,11 +4,12 @@
 # DStrickler Sep 12, 2014
 # Code has been altered to use curl to get/put data via a web-based API
 # instead of by FTP, as the FTP servers prooved too hard to load balance
-# as IWM grew in size.
-# This code is based on work I didn't originaly write.
+# as IWM grew in size. This code is based on work I didn't originaly write.
 #
-# DStrickler Sep 14, 2014
-# Thanks to MBrandon for beta testing and pushing me to get on GitHub.
+# Thanks to MicahB & TreyT for beta testing.
+#
+# This code is available on GitHub at https://github.com/dstrickler/IWM_v2
+#
 # ---------------------------------------------------------------------------
 #
 # This is your Tracer Key. Make sure this is unique for each bash file you run.
@@ -28,7 +29,7 @@ REPORT="1"
 ################################
 # DO NOT EDIT BEYOND THIS LINE #
 ################################
-VERSION="4.0.023"
+VERSION="4.0.024"
 IWMHOST="api.internetweathermap.com"
 IWMDIR="iwm"
 IWMPROTO="http"
@@ -36,7 +37,10 @@ LOGGER="-i -p INFO -t iwm"
 HOPS="15"
 TRACE="-n -m ${HOPS}"
 CRON=0
-
+#####################################################################
+# DON'T REMOVE THIS COMMENT LINE.                                   #
+# THIS CODE IS NEEDED FOR AUTO-UPDADE: 65b8745a568sbd76n0asdiu6vasd #
+#####################################################################
 
 get_unixtime() {
     echo $(date +%s.%3N)
@@ -48,28 +52,31 @@ get_timestamp_now() {
 
 info() {
  if (( ${CRON} == 1 )); then
+ {
+   echo "${timestamp_now} :: ${loadavg} :: ${1}"
    type -p logger > /dev/null 2>&1
    if (( ${?} == 0 )); then
      logger ${LOGGER} "${1}"
    fi
+   }
  else
-   echo "${1}"
+   echo "${timestamp_now} :: ${loadavg} :: ${1}"
  fi
 }
 
 error() {
  loadavg=$(get_loadavg)
  timestamp_now=$(get_timestamp_now)
- info "${timestamp_now} :: ${loadavg} :: [!] Test cancelled: ${1}"
+ info "[!] Test cancelled: ${1}"
  cleanup
  (( ${2} == 1 )) && exit 1
 }
 
 check_exitcode() {
  if (( ${RETVAL} == 0 )); then
-   info "OK"
+   info "${1}: OK"
  else
-   info "FAILED"
+   info "${1}: FAILED"
  fi
 }
 
@@ -136,7 +143,6 @@ mkdir ${IWMTMPDIR}/output
 
 # Find out a existing directory that's writable for the lock file.
 # If all else fails, use your home directory.
-# TODO: On servers like Webfaction, this lock will FAIL (may be fixed)
 LOCKFILE="~/iwm.lock"
 if [[ -d '/var/lock'  &&  -w '/var/lock' ]]; then
     LOCKFILE="/var/lock/iwm.lock"
@@ -153,16 +159,36 @@ CURLURL="${IWMPROTO}://${IWMHOST}/api/get_iwm_trace_bash_version"
 curl -o ${VERSION_FILE} -s --url "${CURLURL}"
 current_version=`cat ${VERSION_FILE}`
 if [[ "${current_version}" == "${VERSION}" ]] ; then
-    echo "${timestamp_now} :: ${loadavg} :: This is the most current version of this software: ${VERSION}"
+    info "This is the most current version of this software: ${VERSION}"
 else
     path_to_bash="${0}"
-    echo "${timestamp_now} :: ${loadavg} :: This verison needs to be upgraded from '${VERSION}' to '${current_version}'."
-    echo "${timestamp_now} :: ${loadavg} :: Saving version ${current_version} to ${path_to_bash}"
+    temp_file="${IWMTMPDIR}/new_bash_version.txt"
+    info "This verison needs to be upgraded from '${VERSION}' to '${current_version}'."
+    info "Saving version ${current_version} to ${temp_file}"
     CURLURL="${IWMPROTO}://${IWMHOST}/api/get_iwm_trace_bash_code/${KEY}"
-    curl -o "${path_to_bash}"  -s --url "${CURLURL}"
-    chmod +x ${path_to_bash}
-    echo "${timestamp_now} :: ${loadavg} :: Halting current code so it runs the new version when run again."
-    exit
+    curl -o "${temp_file}" -s --url "${CURLURL}"
+
+    # Now that the new code is in a temp file, see if there is a unique string
+    # in the code that signifies that it was downloaded OK. If the file was scrabbled
+    # or another error msg came in its place, this code will not be there, and the
+    # upgrade will not proceed. This code is defined at the top of the file in
+    # a comment.
+    temp_file_string=`cat ${temp_file}`
+    if [[ $temp_file_string == *65b8745a568sbd76n0asdiu6vasd* ]]; then
+        info "Upgrading current code..."
+        cp ${temp_file} ${path_to_bash}
+        chmod +x ${path_to_bash}
+        if [[ -f ${path_to_bash} ]]; then
+            rm ${temp_file}
+        fi
+        info "Halting current code so it runs the new version the next time it's run."
+        exit
+    else
+        info "There was a problem upgrading the software. Running existing version for now."
+        if [[ -f ${path_to_bash} ]]; then
+            rm ${temp_file}
+        fi
+    fi
 fi
  
 
@@ -190,7 +216,7 @@ echo "${start}" > ${LOCKFILE}
 
 # Trap for an O/S to get a better understanding of the environment.
 # Would be better if it was a Linux flavor.
-uname_string=$(uname -a 2>/dev/null)
+server_signature="$(uname -a 2>/dev/null)"
 
 
 # Find out if we are being run from the CLI or CRON.
@@ -219,7 +245,7 @@ stopone=$(get_unixtime)
 check_exitcode "Fetching new worklist for key '${KEY}'"
 [[ -s ${WORKLIST} ]] || error "Worklist file is empty" 1
 NUMOFLINES=$(wc -l < ${WORKLIST})
-echo "${timestamp_now} :: ${loadavg} :: Worklist contains ${NUMOFLINES} traces to perform."
+info "Worklist contains ${NUMOFLINES} traces to perform."
 
 for ip in $(cat ${WORKLIST})
 do
@@ -246,11 +272,10 @@ do
         CURLURL="${IWMPROTO}://${IWMHOST}/api/put_traces"
         echo -n "${timestamp_now} :: ${loadavg} :: Uploading via CLI to ${CURLURL} "
         OUTPUTTEXT=`cat ${OUTDIR}/${utstamp}.${KEY}`
-        curl -s --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}" -d uname_string="${uname_string}"
+        curl -s --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}" -d server_signature="${server_signature}"
         echo "OK"
     else
        # This is what is executed when run from crontab.
-       # TODO: Make this a bash file itself that spans and uploads all by itself so the uplaods don't happen all at once.
        echo "${timestamp_now} :: ${loadavg} :: Tracing via cron to ${TRACEIP}"
        ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log &
 
@@ -270,39 +295,24 @@ stoptwo=$(get_unixtime)
 echo ${loadavg} > ${OUTDIR}/load_average_${utstamp}.${KEY}
 
 
-# Take all the payload files and put them into a single var called single_payload.
+# If run from cront, take all the payload files from the temp dir and put them
+# into a single var called single_payload. Then upload them.
+# If run from the CLI, the uploads have already been done - skip this.
+if (( ${CRON} == 1 )); then
 single_payload=""
 for file in ${OUTDIR}/*
-do
-    timestamp_now=$(get_timestamp_now)
-
-    if (( ${CRON} == 0 )); then
-        # TODO: Find out what this if/then is for
-        if [[ -z ${UPLOADLIST} ]]; then
-            UPLOADLIST="${file}"
-        else
-            UPLOADLIST="${UPLOADLIST},${file}"
-        fi
-    else
-        # Upload each file via the API
-        CURLURL="${IWMPROTO}://${IWMHOST}/api/put_traces"
+    do
+        # Append each file's contents to a var so we can do just one upload below.
         OUTPUTTEXT=`cat ${file}`
-
-        # No longer used, but kept in commends in case we need them.
-        # echo "${timestamp_now} :: ${loadavg} :: Uploading via cron to ${CURLURL}"
-        # curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}"
-
         single_payload=$(printf "${single_payload} ${OUTPUTTEXT}\n--[LINEBREAK]--\n")
 
-    fi
-done
-wait
+    done
 
-# Now, in one clean API call, upload the single_payload variable.
-CURLURL="${IWMPROTO}://${IWMHOST}/api/put_single_payload_traces"
-echo "${timestamp_now} :: ${loadavg} :: Uploading tracer payloads..."
-curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${single_payload}" -d uname_string="${uname_string}"
-
+    # Now, in one clean API call, upload the single_payload variable.
+    CURLURL="${IWMPROTO}://${IWMHOST}/api/put_single_payload_traces"
+    echo "${timestamp_now} :: ${loadavg} :: Uploading tracer payloads..."
+    curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${single_payload}" -d server_signature="${server_signature}"
+fi
 
 # Show stats on how long everything took to acomplish.
 end=$(get_unixtime)
@@ -311,8 +321,9 @@ if (( ${CRON} == 0 )); then
  echo "${message}"
 else
  (( ${REPORT} == 1 )) && logger ${LOGGER} "${message}"
+ echo "${message}"
 fi
 
-
+# Cleanup any temp variables and log that we are done.
 cleanup
 echo "${timestamp_now} :: ${loadavg} :: -----[ IWM bash script completed OK ]-----"
