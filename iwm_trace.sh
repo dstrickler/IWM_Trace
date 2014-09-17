@@ -29,7 +29,7 @@ REPORT="1"
 ################################
 # DO NOT EDIT BEYOND THIS LINE #
 ################################
-VERSION="4.0.024"
+VERSION="4.0.026"
 IWMHOST="api.internetweathermap.com"
 IWMDIR="iwm"
 IWMPROTO="http"
@@ -43,7 +43,13 @@ CRON=0
 #####################################################################
 
 get_unixtime() {
-    echo $(date +%s.%3N)
+    kernal=$(uname -v 2>/dev/null)
+    if [[ $kernal =~ "Darwin" ]]; then
+        # We are on OSX, and the trailing "N" makes trouble for the bc command at the end.
+        echo $(date +%s.%3)
+    else
+        echo $(date +%s.%3N)
+    fi
     }
 
 get_timestamp_now() {
@@ -229,7 +235,7 @@ WORKLIST=${IWMTMPDIR}/worklist.${KEY}
 # OUTDIR is where we will place the output of traceroutes, etc.
 OUTDIR=${IWMTMPDIR}/output
 
-(( ${CRON} == 0 )) && echo -n "${timestamp_now} :: ${loadavg} :: Fetching new worklist: "
+# (( ${CRON} == 0 )) && echo -n "${timestamp_now} :: ${loadavg} :: Fetching new worklist: "
 
 # If we have an old worklist, clear it out
 if [ -e "${WORKLIST}" ]; then
@@ -244,7 +250,7 @@ RETVAL=$?
 stopone=$(get_unixtime)
 check_exitcode "Fetching new worklist for key '${KEY}'"
 [[ -s ${WORKLIST} ]] || error "Worklist file is empty" 1
-NUMOFLINES=$(wc -l < ${WORKLIST})
+NUMOFLINES=$(wc -l < ${WORKLIST} | sed -e 's/^ *//' -e 's/ *$//')
 info "Worklist contains ${NUMOFLINES} traces to perform."
 
 for ip in $(cat ${WORKLIST})
@@ -264,10 +270,9 @@ do
     TRACEIP=$(echo ${ip} | sed -e 's/\/$//')
     timestamp_now=$(get_timestamp_now)
     if (( ${CRON} == 0 )); then
-        echo -n "${timestamp_now} :: ${loadavg} :: Tracing via CLI ${TRACEIP}: "
         ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log
         RETVAL=$?
-        check_exitcode "Tracing ${TRACEIP}"
+        check_exitcode "Tracing via CLI to ${TRACEIP}"
 
         CURLURL="${IWMPROTO}://${IWMHOST}/api/put_traces"
         echo -n "${timestamp_now} :: ${loadavg} :: Uploading via CLI to ${CURLURL} "
@@ -316,13 +321,24 @@ fi
 
 # Show stats on how long everything took to acomplish.
 end=$(get_unixtime)
-message="${timestamp_now} :: ${loadavg} :: Test took $(bc <<< ${end}-${start}) seconds (download: $(bc <<< ${stopone}-${start}), trace: $(bc <<< ${stoptwo}-${stopone}), upload: $(bc <<< ${end}-${stoptwo}))"
+run_total=$(bc <<< ${end}-${start} | sed -e 's/^ *//' -e 's/ *$//')
+run_download=$(bc <<< ${stopone}-${start} | sed -e 's/^ *//' -e 's/ *$//')
+run_trace=$(bc <<< ${stoptwo}-${stopone} | sed -e 's/^ *//' -e 's/ *$//')
+run_upload=$(bc <<< ${end}-${stoptwo} | sed -e 's/^ *//' -e 's/ *$//')
+message="${timestamp_now} :: ${loadavg} :: Test took ${run_total} seconds (download: ${run_download}, trace: ${run_trace}, upload: ${run_upload})"
 if (( ${CRON} == 0 )); then
  echo "${message}"
 else
  (( ${REPORT} == 1 )) && logger ${LOGGER} "${message}"
  echo "${message}"
 fi
+
+# Experimenting with uploading the stats.
+info "Uploading statistics about this run of the bash file"
+CURLURL="${IWMPROTO}://${IWMHOST}/api/put_run_statistics"
+echo "${timestamp_now} :: ${loadavg} :: Uploading bash code run statistics..."
+curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d run_total="${run_total}" -d run_download="${run_download}" -d run_trace="${run_trace}" -d run_upload="${run_upload}"
+
 
 # Cleanup any temp variables and log that we are done.
 cleanup
