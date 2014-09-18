@@ -8,7 +8,7 @@
 #
 # Thanks to MicahB & TreyT for beta testing.
 #
-# This code is available on GitHub at https://github.com/dstrickler/IWM_v2
+# This code is available on GitHub at https://github.com/dstrickler/IWM_Trace
 #
 # ---------------------------------------------------------------------------
 #
