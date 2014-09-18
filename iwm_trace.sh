@@ -24,6 +24,8 @@ HIGHLOAD="5"
 REPORT="1"
 #
 # TODO: Add a verbose logging switch and a log() function.
+# TODO: Make all variables upper case.
+# TODO: Improve code section spacing & cleanup comments.
 
 
 ################################
@@ -37,14 +39,14 @@ LOGGER="-i -p INFO -t iwm"
 HOPS="15"
 TRACE="-n -m ${HOPS}"
 CRON=0
+OS_KERNEL=$(uname -v 2>/dev/null)
 #####################################################################
 # DON'T REMOVE THIS COMMENT LINE.                                   #
 # THIS CODE IS NEEDED FOR AUTO-UPDADE: 65b8745a568sbd76n0asdiu6vasd #
 #####################################################################
 
 get_unixtime() {
-    kernal=$(uname -v 2>/dev/null)
-    if [[ $kernal =~ "Darwin" ]]; then
+    if [[ $OS_KERNEL =~ "Darwin" ]]; then
         # We are on OSX, and the trailing "N" makes trouble for the bc command at the end.
         echo $(date +%s.%3)
     else
@@ -105,9 +107,13 @@ cleanup() {
         rm -rf ${LOCKFILE}
     fi
 }
-# These are defined over again inside of any loop to keep current
+# These are defined over again inside of any loop to keep them current.
 loadavg=$(get_loadavg)
 timestamp_now=$(get_timestamp_now)
+
+# Find out if we are being run from the CLI or CRON.
+tty -s
+(( ${?} == 1 )) && CRON="1"
 
 # Figure out where traceroute lives, and set it as a var for use later.
 # While the "type" command should fine it, we search for it in some
@@ -157,7 +163,6 @@ if [[ -d '/tmp'  &&  -w '/tmp' ]]; then
     LOCKFILE="/tmp/iwm.lock"
 fi
 
-
 # Run a check to see if there is a new version of the code.
 # If so, replace the code we are currently running.
 VERSION_FILE="${IWMTMPDIR}/iwm_trace_bash_version.txt"
@@ -170,7 +175,7 @@ else
     path_to_bash="${0}"
     temp_file="${IWMTMPDIR}/new_bash_version.txt"
     info "This verison needs to be upgraded from '${VERSION}' to '${current_version}'."
-    info "Saving version ${current_version} to ${temp_file}"
+    info "Saving version ${current_version} to ${temp_file}..."
     CURLURL="${IWMPROTO}://${IWMHOST}/api/get_iwm_trace_bash_code/${KEY}"
     curl -o "${temp_file}" -s --url "${CURLURL}"
 
@@ -201,11 +206,11 @@ fi
 # If the lock file is too old, delete it.
 if [[ -e ${LOCKFILE} ]]; then
     if [ "$(find ${LOCKFILE} -mmin +1)" != "" ]; then
-        echo "${timestamp_now} :: ${loadavg} :: Lockfile ${LOCKFILE} is too old - delete it."
+        info "Lockfile ${LOCKFILE} is too old - delete it."
         rm ${LOCKFILE}
     else
         # Don't clean out the lockfile by calling error(). We need the lockfile to stay in place.
-        echo "${timestamp_now} :: ${loadavg} :: Lockfile (${LOCKFILE}) is too fresh to run."
+        info "Lockfile (${LOCKFILE}) is too fresh to run."
         exit
     fi
 fi
@@ -224,11 +229,6 @@ echo "${start}" > ${LOCKFILE}
 # Would be better if it was a Linux flavor.
 server_signature="$(uname -a 2>/dev/null)"
 
-
-# Find out if we are being run from the CLI or CRON.
-tty -s
-(( ${?} == 1 )) && CRON="1"
-
 # WORKLIST is the file we are about to download
 WORKLIST=${IWMTMPDIR}/worklist.${KEY}
 
@@ -239,7 +239,7 @@ OUTDIR=${IWMTMPDIR}/output
 
 # If we have an old worklist, clear it out
 if [ -e "${WORKLIST}" ]; then
-    echo "Removing old worklist..."
+    info "Removing old worklist..."
     rm ${WORKLIST}
 fi
 
@@ -281,7 +281,7 @@ do
         echo "OK"
     else
        # This is what is executed when run from crontab.
-       echo "${timestamp_now} :: ${loadavg} :: Tracing via cron to ${TRACEIP}"
+       info "Tracing via cron to ${TRACEIP}"
        ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log &
 
     fi
@@ -315,7 +315,7 @@ for file in ${OUTDIR}/*
 
     # Now, in one clean API call, upload the single_payload variable.
     CURLURL="${IWMPROTO}://${IWMHOST}/api/put_single_payload_traces"
-    echo "${timestamp_now} :: ${loadavg} :: Uploading tracer payloads..."
+    info "Uploading tracer payloads..."
     curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${single_payload}" -d server_signature="${server_signature}"
 fi
 
@@ -333,13 +333,13 @@ else
  echo "${message}"
 fi
 
-# Experimenting with uploading the stats.
+# Uploading the stats from the Bash run. Must be done at end of run as a seperate upload.
 info "Uploading statistics about this run of the bash file"
 CURLURL="${IWMPROTO}://${IWMHOST}/api/put_run_statistics"
-echo "${timestamp_now} :: ${loadavg} :: Uploading bash code run statistics..."
+info "Uploading bash code run statistics..."
 curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d run_total="${run_total}" -d run_download="${run_download}" -d run_trace="${run_trace}" -d run_upload="${run_upload}"
 
 
 # Cleanup any temp variables and log that we are done.
 cleanup
-echo "${timestamp_now} :: ${loadavg} :: -----[ IWM bash script completed OK ]-----"
+info " -----[ IWM bash script completed OK ]-----"
