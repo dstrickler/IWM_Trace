@@ -169,37 +169,44 @@ VERSION_FILE="${IWMTMPDIR}/iwm_trace_bash_version.txt"
 CURLURL="${IWMPROTO}://${IWMHOST}/api/get_iwm_trace_bash_version"
 curl -o ${VERSION_FILE} -s --url "${CURLURL}"
 current_version=`cat ${VERSION_FILE}`
-if [[ "${current_version}" == "${VERSION}" ]] ; then
-    info "This is the most current version of this software: ${VERSION}"
-else
-    path_to_bash="${0}"
-    temp_file="${IWMTMPDIR}/new_bash_version.txt"
-    info "This verison needs to be upgraded from '${VERSION}' to '${current_version}'."
-    info "Saving version ${current_version} to ${temp_file}..."
-    CURLURL="${IWMPROTO}://${IWMHOST}/api/get_iwm_trace_bash_code/${KEY}"
-    curl -o "${temp_file}" -s --url "${CURLURL}"
 
-    # Now that the new code is in a temp file, see if there is a unique string
-    # in the code that signifies that it was downloaded OK. If the file was scrabbled
-    # or another error msg came in its place, this code will not be there, and the
-    # upgrade will not proceed. This code is defined at the top of the file in
-    # a comment.
-    temp_file_string=`cat ${temp_file}`
-    if [[ $temp_file_string == *65b8745a568sbd76n0asdiu6vasd* ]]; then
-        info "Upgrading current code..."
-        cp ${temp_file} ${path_to_bash}
-        chmod +x ${path_to_bash}
-        if [[ -f ${path_to_bash} ]]; then
-            rm ${temp_file}
-        fi
-        info "Halting current code so it runs the new version the next time it's run."
-        exit
+# Check that the version we just got looks like a valid version number.
+# If not, bail out - something has happened that we don't even want to proceed.
+if [[ "${current_version}" =~ ^[0-9]\.[0-9]\.[0-9][0-9][0-9]$ ]] ; then
+    if [[ "${current_version}" == "${VERSION}" ]] ; then
+        info "This is the most current version of this software: ${VERSION}"
     else
-        info "There was a problem upgrading the software. Running existing version for now."
-        if [[ -f ${path_to_bash} ]]; then
-            rm ${temp_file}
+        path_to_bash="${0}"
+        temp_file="${IWMTMPDIR}/new_bash_version.txt"
+        info "This verison needs to be upgraded from '${VERSION}' to '${current_version}'."
+        info "Saving version ${current_version} to ${temp_file}..."
+        CURLURL="${IWMPROTO}://${IWMHOST}/api/get_iwm_trace_bash_code/${KEY}"
+        curl -o "${temp_file}" -s --url "${CURLURL}"
+
+        # Now that the new code is in a temp file, see if there is a unique string
+        # in the code that signifies that it was downloaded OK. If the file was scrabbled
+        # or another error msg came in its place, this code will not be there, and the
+        # upgrade will not proceed. This code is defined at the top of the file in
+        # a comment.
+        temp_file_string=`cat ${temp_file}`
+        if [[ $temp_file_string == *65b8745a568sbd76n0asdiu6vasd* ]]; then
+            info "Upgrading current code..."
+            cp ${temp_file} ${path_to_bash}
+            chmod +x ${path_to_bash}
+            if [[ -f ${path_to_bash} ]]; then
+                rm ${temp_file}
+            fi
+            info "Halting current code so it runs the new version the next time it's run."
+            exit
+        else
+            info "There was a problem upgrading the software. Running existing version for now."
+            if [[ -f ${path_to_bash} ]]; then
+                rm ${temp_file}
+            fi
         fi
     fi
+else
+    error "The version pulled from the IWM server is corrupted: '${current_version}' " 1
 fi
  
 
