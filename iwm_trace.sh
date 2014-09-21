@@ -4,15 +4,15 @@
 # DStrickler Sep 12, 2014
 # Code has been altered to use curl to get/put data via a web-based API
 # instead of by FTP, as the FTP servers prooved too hard to load balance
-# as IWM grew in size. This code is based on work I didn't originaly write.
+# as IWM grew in size.
 #
+# This code is based on work by MiikkaK - many thanks.
 # Thanks to MicahB & TreyT for beta testing.
 #
 # This code is available on GitHub at https://github.com/dstrickler/IWM_Trace
+## ---------------------------------------------------------------------------
 #
-# ---------------------------------------------------------------------------
-#
-# This is your Tracer Key. Make sure this is unique for each bash file you run.
+# This is your Tracer Key. Make sure this is *unique* for each bash file you run.
 # Additional keys can be generated from our portal: www.internetweathermap.com
 KEY="replace_with_your_personal_key"
 #
@@ -31,7 +31,7 @@ REPORT="1"
 ################################
 # DO NOT EDIT BEYOND THIS LINE #
 ################################
-VERSION="4.0.026"
+VERSION="4.0.027"
 IWMHOST="api.internetweathermap.com"
 IWMDIR="iwm"
 IWMPROTO="http"
