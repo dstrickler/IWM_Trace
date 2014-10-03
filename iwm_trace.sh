@@ -31,14 +31,14 @@ REPORT="1"
 ################################
 # DO NOT EDIT BEYOND THIS LINE #
 ################################
-VERSION="4.0.027"
+VERSION="4.0.029"
 IWMHOST="api.internetweathermap.com"
 IWMDIR="iwm"
 IWMPROTO="http"
 LOGGER="-i -p INFO -t iwm"
 HOPS="15"
-TRACE="-I -n -m ${HOPS}"
-# TRACE="-I -n -m ${HOPS}"
+# The traceroute "-I" option is a little faster, but can only be run in super-user mode.
+TRACE=" -n -m ${HOPS}"
 AUTOUPGRADE=1
 CRON=0
 OS_KERNEL=$(uname -v 2>/dev/null)
@@ -121,6 +121,7 @@ tty -s
 # While the "type" command should fine it, we search for it in some
 # obvious places just in case.
 TRACEROUTE_PATH=$(type -p  traceroute)
+NICE_PATH=$(type -p nice)
 if [ -f "/usr/bin/traceroute" ]; then
     TRACEROUTE_PATH="/usr/bin/traceroute"
 fi
@@ -288,12 +289,14 @@ do
         CURLURL="${IWMPROTO}://${IWMHOST}/api/put_traces"
         echo -n "${timestamp_now} :: ${loadavg} :: Uploading via CLI to ${CURLURL} "
         OUTPUTTEXT=`cat ${OUTDIR}/${utstamp}.${KEY}`
-        curl -s --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}" -d server_signature="${server_signature}"
+        # Added "nice" to help keep CPU loads down as of Sept 25, 2014
+        ${NICE_PATH} -n 19 curl -s --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}" -d server_signature="${server_signature}"
         echo "OK"
     else
        # This is what is executed when run from crontab.
+       # Added "nice" to help keep CPU loads down as of Sept 25, 2014
        info "Tracing via cron to ${TRACEIP}"
-       ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log &
+       ${NICE_PATH} -n 19 ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log &
 
     fi
 
