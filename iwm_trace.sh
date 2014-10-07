@@ -37,9 +37,10 @@ IWMDIR="iwm"
 IWMPROTO="http"
 LOGGER="-i -p INFO -t iwm"
 HOPS="15"
-# The traceroute "-I" option is a little faster, but can only be run in super-user mode.
-TRACE=" -n -m ${HOPS}"
+# The traceroute "-I" option is a little faster, but can only be run in super-user mode, so don't use it.
+TRACE="-n -m ${HOPS}"
 AUTOUPGRADE=1
+DEBUG=0
 CRON=0
 OS_KERNEL=$(uname -v 2>/dev/null)
 #####################################################################
@@ -213,23 +214,26 @@ if [[ ${AUTOUPGRADE} == 1 ]]; then
         error "The version pulled from the IWM server is corrupted: '${current_version}' " 1
     fi
 fi
- 
 
-# If the lock file is too old, delete it.
-if [[ -e ${LOCKFILE} ]]; then
-    if [ "$(find ${LOCKFILE} -mmin +1)" != "" ]; then
-        info "Lockfile ${LOCKFILE} is too old - delete it."
-        rm ${LOCKFILE}
-    else
-        # Don't clean out the lockfile by calling error(). We need the lockfile to stay in place.
-        info "Lockfile (${LOCKFILE}) is too fresh to run."
-        exit
+if [[ $1 == "override_lock" ]]; then
+    info "CLI param detected to override locking mechanism - ignoring lock state."
+else
+    # If the lock file is too old, delete it.
+    if [[ -e ${LOCKFILE} ]]; then
+        if [ "$(find ${LOCKFILE} -mmin +1)" != "" ]; then
+            info "Lockfile ${LOCKFILE} is too old - delete it."
+            rm ${LOCKFILE}
+        else
+            # Don't clean out the lockfile by calling error(). We need the lockfile to stay in place.
+            info "Lockfile (${LOCKFILE}) is too fresh to run."
+            exit
+        fi
     fi
-fi
 
-# If the lock file exists, we are probobly still running - exit out.
-if [[ -e ${LOCKFILE} ]]; then
-    error "Previous test still on-going. Recent lock file found at ${LOCKFILE}" 1
+    # If the lock file exists, we are probobly still running - exit out.
+    if [[ -e ${LOCKFILE} ]]; then
+        error "Previous test still on-going. Recent lock file found at ${LOCKFILE}" 1
+    fi
 fi
 
 
@@ -264,6 +268,10 @@ check_exitcode "Fetching new worklist for key '${KEY}'"
 [[ -s ${WORKLIST} ]] || error "Worklist file is empty" 1
 NUMOFLINES=$(wc -l < ${WORKLIST} | sed -e 's/^ *//' -e 's/ *$//')
 info "Worklist contains ${NUMOFLINES} traces to perform."
+if [[ ${DEBUG} == 1 ]]; then
+    echo "Worklist:"
+    cat ${WORKLIST}
+fi
 
 for ip in $(cat ${WORKLIST})
 do
@@ -285,6 +293,11 @@ do
         ${TRACEROUTE_PATH} ${TRACE} ${TRACEIP} > ${OUTDIR}/${utstamp}.${KEY} 2>${IWMTMPDIR}/${utstamp}.errors.log
         RETVAL=$?
         check_exitcode "Tracing via CLI to ${TRACEIP}"
+	if [[ ${DEBUG} == 1 ]]; then
+	    echo "Traceroute result:"
+	    cat "${OUTDIR}/${utstamp}.${KEY}"
+	    echo ""
+	fi
 
         CURLURL="${IWMPROTO}://${IWMHOST}/api/put_traces"
         echo -n "${timestamp_now} :: ${loadavg} :: Uploading via CLI to ${CURLURL} "
