@@ -31,7 +31,7 @@ REPORT="1"
 ################################
 # DO NOT EDIT BEYOND THIS LINE #
 ################################
-VERSION="4.0.029"
+VERSION="4.0.030"
 IWMHOST="api.internetweathermap.com"
 IWMDIR="iwm"
 IWMPROTO="http"
@@ -303,7 +303,7 @@ do
         echo -n "${timestamp_now} :: ${loadavg} :: Uploading via CLI to ${CURLURL} "
         OUTPUTTEXT=`cat ${OUTDIR}/${utstamp}.${KEY}`
         # Added "nice" to help keep CPU loads down as of Sept 25, 2014
-        ${NICE_PATH} -n 19 curl -s --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}" -d server_signature="${server_signature}"
+        ${NICE_PATH} -n 19 curl -s --url "${CURLURL}"  -d key="${KEY}" -d version="${VERSION}" -d payload="${OUTPUTTEXT}" -d server_signature="${server_signature}" -d using_cron="${CRON}" -d load_average="${loadavg}"
         echo "OK"
     else
        # This is what is executed when run from crontab.
@@ -343,7 +343,7 @@ for file in ${OUTDIR}/*
     # Now, in one clean API call, upload the single_payload variable.
     CURLURL="${IWMPROTO}://${IWMHOST}/api/put_single_payload_traces"
     info "Uploading tracer payloads..."
-    curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${single_payload}" -d server_signature="${server_signature}"
+    curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d payload="${single_payload}" -d server_signature="${server_signature}"  -d using_cron="${CRON}" -d load_average="${loadavg}"
 fi
 
 # Show stats on how long everything took to acomplish.
@@ -364,7 +364,7 @@ fi
 info "Uploading statistics about this run of the bash file"
 CURLURL="${IWMPROTO}://${IWMHOST}/api/put_run_statistics"
 info "Uploading bash code run statistics..."
-curl -s --url "${CURLURL}" -d key="${KEY}" -d version="${VERSION}" -d run_total="${run_total}" -d run_download="${run_download}" -d run_trace="${run_trace}" -d run_upload="${run_upload}"
+curl -s --url "${CURLURL}" -d key="${KEY}" -d run_total="${run_total}" -d run_download="${run_download}" -d run_trace="${run_trace}" -d run_upload="${run_upload}"
 
 
 # Cleanup any temp variables and log that we are done.
