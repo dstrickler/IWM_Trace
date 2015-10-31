@@ -97,7 +97,7 @@ get_loadavg() {
  if [[ -f /proc/loadavg ]]; then
    awk '{ print $2 }' /proc/loadavg
  else
-   uptime | sed 's/\(.*\)load average\(.*\) \(.*\) \(.*\)/\3/g'
+   uptime | sed 's/\(.*\)load average\(.*\) \(.*\)[,] \(.*\)/\3/g'
  fi
 }
 
